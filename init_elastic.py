@@ -15,6 +15,12 @@ except ImportError:
 BATCH_SIZE = 100
 MIN_SUMMARY_SIZE = 100
 BATCHES = 10000
+RETRY_TIMEOUTS = {
+    1: 1,
+    2: 5,
+    3: 30
+}
+ELASTIC_AUTH = HTTPBasicAuth('elastic', 'whatever')
 
 
 def get_abstracts():
@@ -49,13 +55,12 @@ def get_data(fp):
 def add_data(data):
     if urllib3:
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-    auth = HTTPBasicAuth('elastic', 'whatever')
     counter = count(1)
 
     while True:
         batch_no = next(counter)
         parts = ((
-            json.dumps({"index": {"_index": "articles"}}),
+            json.dumps({'index': {'_index': 'articles'}}),
             json.dumps({'title': title, 'link': link, 'text': text})
         ) for title, link, text in islice(data, BATCH_SIZE))
         body = ''.join('{}\n{}\n'.format(*part) for part in parts)
@@ -63,28 +68,47 @@ def add_data(data):
             break
         print('Processing batch request', batch_no)
         stdout.flush()
-        elastic_bulk_request(body, auth)
+        elastic_bulk_request(body)
 
 
-def elastic_bulk_request(body, auth, retry=0):
+def elastic_bulk_request(body, retry=0):
     try:
         resp = requests.post(
             url='https://elastic:9200/_bulk',
             data=body,
-            auth=auth,
+            auth=ELASTIC_AUTH,
             verify=False,
             headers={'Content-Type': 'application/json'}
         )
         resp.raise_for_status()
     except requests.RequestException:
+        retry += 1
         if retry > 3:
             raise
-        sleep(retry)
-        elastic_bulk_request(body, auth, retry=retry + 1)
+        sleep(RETRY_TIMEOUTS[retry])
+        elastic_bulk_request(body, retry=retry)
+
+
+def create_es_index():
+    body = {
+        'mappings': {'properties': {
+            'text': {'type': 'text'},
+            'link': {'type': 'text'},
+            'title': {'type': 'text'}
+        }}
+    }
+    resp = requests.put(
+        url='https://elastic:9200/articles',
+        json=body,
+        auth=ELASTIC_AUTH,
+        verify=False,
+    )
+    resp.raise_for_status()
 
 
 def main():
     get_abstracts()
+    create_es_index()
     with open('./enwiki-latest-abstract.xml', 'rb') as fp:
         data = get_data(fp)
         add_data(data)

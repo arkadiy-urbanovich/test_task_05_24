@@ -3,8 +3,8 @@ version: '3.9'
 services:
   init_elastic:
     container_name: init_elastic
-    image: test_task_python
-    build:
+    image: &python_image test_task_python
+    build: &python_build
       context: ./
       dockerfile: ./Dockerfile
     volumes:
@@ -21,12 +21,9 @@ services:
 
   web:
     container_name: web
-    image: test_task_python
-    build:
-      context: ./
-      dockerfile: ./Dockerfile
+    image: *python_image
+    build: *python_build
     volumes:
-      - ./downloads/:/app/downloads/
       - ./web.py:/app/web.py
       - elastic_share:/app/elastic_share/
     ports:
@@ -37,6 +34,17 @@ services:
     environment:
       PYTHONPATH: /app/
     command: python /app/web.py
+
+  web_test:
+    container_name: web_test
+    image: *python_image
+    build: *python_build
+    volumes:
+      - ./web.py:/app/web.py
+      - ./web_test.py:/app/web_test.py
+    environment:
+      PYTHONPATH: /app/
+    command: python -m pytest /app/web_test.py
 
   elastic:
     container_name: elasticsearch
