@@ -44,13 +44,8 @@ async def add_article(article: Article, response: Response) -> StatusResponse:
     return StatusResponse(status='fail', details=elastic_response.text)
 
 
-@app.get("/articles")
-async def search(
-    q: str,
-    limit: int = 10,
-    response_model=list[Article],
-    responses={500: {'model': StatusResponse}}
-):
+@app.get("/articles", response_model=list[Article], responses={500: {'model': StatusResponse}})
+async def search(q: str, limit: int = 10):
     elastic_response = await requests.get(
         url='https://elastic:9200/articles/_search',
         auth=ELASTIC_AUTH,
