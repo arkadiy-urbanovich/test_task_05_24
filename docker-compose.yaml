@@ -1,0 +1,52 @@
+version: '3.9'
+
+services:
+  init_elastic:
+    container_name: init_elastic
+    image: test_task_python
+    build:
+      context: ./
+      dockerfile: ./Dockerfile
+    volumes:
+      - ./downloads/:/app/downloads/
+      - ./init_elastic.py:/app/init_elastic.py
+      - elastic_share:/app/elastic_share/
+    depends_on:
+      - elastic
+    environment:
+      PYTHONPATH: /app/
+    command: python /app/init_elastic.py
+#    command: sleep infinity
+
+  web:
+    container_name: web
+    image: test_task_python
+    build:
+      context: ./
+      dockerfile: ./Dockerfile
+    volumes:
+      - ./downloads/:/app/downloads/
+      - ./web.py:/app/web.py
+      - elastic_share:/app/elastic_share/
+    ports:
+      - '80:80'
+    depends_on:
+      - elastic
+    environment:
+      PYTHONPATH: /app/
+    command: python /app/web.py
+
+  elastic:
+    container_name: elasticsearch
+    image: elasticsearch:8.13.4
+    environment:
+      discovery.type: single-node
+      ELASTIC_PASSWORD: whatever
+    volumes:
+      - elastic_share:/usr/share/
+    ports:
+      - '9200:9200'
+
+
+volumes:
+  elastic_share: {}
